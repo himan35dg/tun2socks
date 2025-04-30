@@ -1,58 +1,25 @@
-name: Build tun2socks Android AAR
-
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v2
 
-      - name: Setup Go
+      - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: "1.23"
+          go-version: '1.23'
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget unzip build-essential git
-
+      # ↓↓↓ Updated NDK installation step ↓↓↓
       - name: Install Android NDK r21e
         run: |
-          wget https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip
-          unzip -q android-ndk-r21e-linux-x86_64.zip -d $HOME/ndk
-        env:
-          HOME: ${{ runner.home }}
+          # Ensure we unpack under $HOME where we have write permission
+          mkdir -p "$HOME/ndk"
+          wget -q https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip
+          unzip -q android-ndk-r21e-linux-x86_64.zip -d "$HOME/ndk"
 
       - name: Configure ANDROID_NDK_HOME
         run: |
           echo "ANDROID_NDK_HOME=$HOME/ndk/android-ndk-r21e" >> $GITHUB_ENV
           echo "PATH=$ANDROID_NDK_HOME:$PATH" >> $GITHUB_ENV
 
-      - name: Install gomobile
-        run: |
-          go install golang.org/x/mobile/cmd/gomobile@latest
-          gomobile init
-
-      - name: Clone go-tun2socks-mobile
-        run: git clone https://github.com/iseki0/go-tun2socks-mobile.git
-
-      - name: Build tun2socks AAR
-        working-directory: go-tun2socks-mobile
-        run: |
-          make android
-
-      - name: Upload AAR artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tun2socks-android-aar
-          path: go-tun2socks-mobile/build/tun2socks.aar
+      # ... the rest of your build steps ...
