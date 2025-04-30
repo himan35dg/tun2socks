@@ -50,7 +50,7 @@ jobs:
           github.com/eycorsican/go-tun2socks-mobile
 
     - name: Upload AAR artifact
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: tun2socks-android-aar
         path: go-tun2socks-mobile/build/tun2socks.aar
