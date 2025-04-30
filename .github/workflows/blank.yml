@@ -8,14 +8,14 @@ on:
 
 jobs:
   build-android:
-    runs-on: ubuntu-22.04 # Stick with a specific version
+    # --- CHANGE RUNNER AGAIN ---
+    runs-on: ubuntu-20.04 # Try ubuntu-20.04
 
     env:
       ANDROID_API: 21
-      NDK_VERSION_RAW: '25.2.9519653' # Corresponds to r25c - sdkmanager uses specific version numbers
+      NDK_VERSION_RAW: '25.2.9519653' # Corresponds to r25c
       BUILD_TOOLS_VERSION: '33.0.2'
-      # Define ANDROID_SDK_ROOT for sdkmanager
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk # Default location for setup-sdk action
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
 
     steps:
     - name: Checkout code
@@ -33,47 +33,35 @@ jobs:
       run: |
         go install golang.org/x/mobile/cmd/gomobile@latest
 
-    # --- Setup SDK Only (Provides sdkmanager) ---
+    # --- Use setup-sdk@v3 (as it's the one now failing) ---
     - name: Setup Android SDK
-      uses: android-actions/setup-sdk@v3
+      uses: android-actions/setup-sdk@v3 # This is the one failing
       id: setup-sdk
       with:
         api-level: ${{ env.ANDROID_API }}
-        # Don't specify ndk-version here as we'll install manually
         build-tools: ${{ env.BUILD_TOOLS_VERSION }}
-        # Ensure command-line tools are included for sdkmanager
         cmdline-tools-version: latest
 
-    # --- Manually Install NDK using sdkmanager ---
-    - name: Install Android NDK manually
-      # sdkmanager path needs to be correct. setup-sdk action might place it differently.
-      # Common path is $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager
-      # Let's add the potential bin dir to PATH first
+    # --- Re-integrate NDK setup using the working action or manual ---
+    # If setup-ndk@c71af7a8fcc31d727d1052901b466a786b91862e also failed, stick with manual NDK install approach
+    - name: Install Android NDK manually # Manual NDK install from previous attempt
       run: |
         echo "Adding SDK tools to PATH"
         echo "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin" >> $GITHUB_PATH
         echo "${ANDROID_SDK_ROOT}/platform-tools" >> $GITHUB_PATH
-        echo "Listing available NDK packages:"
-        sdkmanager --list | grep ndk || echo "NDK grep failed, proceeding anyway"
         echo "Attempting to install NDK version ${{ env.NDK_VERSION_RAW }}"
-        # Accept licenses automatically
         yes | sdkmanager "ndk;${{ env.NDK_VERSION_RAW }}"
         echo "NDK installation finished."
 
-    # --- Set NDK_PATH environment variable for gomobile ---
     - name: Set NDK_PATH environment variable
       run: |
-        # The NDK should be installed inside ANDROID_SDK_ROOT/ndk/<version>
         NDK_PATH="${ANDROID_SDK_ROOT}/ndk/${{ env.NDK_VERSION_RAW }}"
         echo "NDK_PATH=${NDK_PATH}" >> $GITHUB_ENV
         echo "Found NDK path: ${NDK_PATH}"
-        # Verify path exists
         ls -ld "${NDK_PATH}"
 
-    # Initialize gomobile *after* NDK install
     - name: Initialize gomobile
       run: |
-         # Use the NDK_PATH we set in the environment
          echo "Initializing gomobile with NDK at $NDK_PATH"
          gomobile init -ndk="${NDK_PATH}"
 
@@ -81,8 +69,7 @@ jobs:
       run: |
         mkdir -p build
         echo "--- Running gomobile bind ---"
-        # Pass NDK path also via env var, gomobile might pick it up
-        export NDK_HOME=$NDK_PATH
+        export NDK_HOME=$NDK_PATH # Also set NDK_HOME just in case
         gomobile bind \
           -v \
           -target=android \
