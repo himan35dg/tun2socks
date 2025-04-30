@@ -2,21 +2,18 @@ name: Build tun2socks for Android
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-      - name: Setup Go
-        uses: actions/setup-go@v2
+      - uses: actions/setup-go@v2
         with:
-          go-version: '1.21'
+          go-version: "1.21"
 
       - name: Install dependencies
         run: |
@@ -34,8 +31,8 @@ jobs:
           cd go-tun2socks-mobile
           make android
 
-      - name: Upload AAR as artifact
-        uses: actions/upload-artifact@v2.3.0   # ثبّتنا هنا على نسخة 2.3.0
+      - name: Upload AAR artifact
+        uses: actions/upload-artifact@v3
         with:
           name: tun2socks-android
           path: go-tun2socks-mobile/pkg/android/go-tun2socks-mobile.aar
