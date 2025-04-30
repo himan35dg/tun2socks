@@ -1,56 +1,103 @@
-name: Build tun2socks AAR
+# اسم سير العمل (Workflow)
+name: Build tun2socks Android AAR
 
+# متى يتم تشغيل سير العمل هذا
 on:
+  # عند إنشاء علامة (tag) تبدأ بـ 'v'
   push:
     tags:
-      - 'v*'       # شغل على كل تاج يبدأ بـ v
+      - 'v*' # مثال: v1.0.0, v2.5
+
+  # للسماح بالتشغيل اليدوي من واجهة GitHub Actions
   workflow_dispatch:
 
+# تعريف المهام (Jobs)
 jobs:
   build-android:
-    runs-on: ubuntu-latest
+    # تشغيل المهمة على أحدث بيئة Ubuntu
+    runs-on: ubuntu-latest # يمكنك تجربة ubuntu-22.04 إذا استمرت مشاكل البنية التحتية
 
+    # متغيرات البيئة للمهمة
     env:
       # الحد الأدنى لإصدار Android API الذي يدعمه tun2socks
       ANDROID_API: 21
+      # إصدار NDK. يفضل استخدام إصدار مدعوم من gomobile (r25c مثال جيد)
+      # استخدم الإصدار الرقمي الكامل كما يتطلبه sdkmanager إذا لم تعمل الأكشن
+      # NDK_VERSION_RAW: '25.2.9519653' # للمثبت اليدوي
+      NDK_VERSION: 'r25c' # لإجراء setup-ndk
+      # إصدار أدوات بناء Android
+      BUILD_TOOLS_VERSION: '33.0.2'
 
+    # خطوات المهمة
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+    - name: Checkout code # سحب الكود من المستودع
+      uses: actions/checkout@v4 # استخدام أحدث إصدار معروف ومستقر
 
-    - name: Setup Go
-      uses: actions/setup-go@v2
+    - name: Setup Go # إعداد بيئة Go
+      uses: actions/setup-go@v5 # استخدام أحدث إصدار
       with:
-        go-version: '1.23.x'
+        go-version: '1.22.x' # استخدام إصدار مستقر مدعوم من gomobile
 
-    - name: Install gomobile and required packages
+    - name: Add Go bin to PATH # إضافة مسار ملفات Go التنفيذية إلى متغير PATH
+      run: echo "$HOME/go/bin" >> $GITHUB_PATH
+
+    - name: Install gomobile # تثبيت أداة gomobile
       run: |
+        # تثبيت الأداة نفسها بأحدث إصدار
         go install golang.org/x/mobile/cmd/gomobile@latest
-        go get -u golang.org/x/mobile/bind  # تثبيت الحزمة المفقودة
-        gomobile init
+        # gomobile init ستقوم بتنزيل الحزم اللازمة مثل golang.org/x/mobile/bind
+        # سنقوم بتشغيلها لاحقًا بعد إعداد NDK/SDK
 
-    - name: Setup Android NDK
-      uses: android-actions/setup-ndk@v2
+    # ملاحظة: كانت المشاكل السابقة هنا (Missing download info)
+    # نستخدم إصدارات الأكشن الصحيحة كما هي معروفة
+    - name: Setup Android NDK # إعداد Android NDK باستخدام الأكشن
+      uses: android-actions/setup-ndk@v1 # هذا هو الإصدار الصحيح من هذا الأكشن
+      id: setup-ndk # إعطاء معرف للخطوة لاستخدام مخرجاتها لاحقًا
       with:
-        ndk-version: '21.3.6528147'   # إصدار مدعوم ضمن 21..35
+        ndk-version: ${{ env.NDK_VERSION }} # استخدام إصدار NDK المحدد
 
-    - name: Install Android SDK tools
-      uses: android-actions/setup-sdk@v2
+    - name: Setup Android SDK # إعداد Android SDK باستخدام الأكشن
+      uses: android-actions/setup-sdk@v3 # هذا هو الإصدار الصحيح من هذا الأكشن
+      id: setup-sdk
       with:
-        api-level: ${{ env.ANDROID_API }}
-        components: platform-tools, build-tools;33.0.2
+        api-level: ${{ env.ANDROID_API }} # استخدام مستوى API المحدد
+        ndk-version: ${{ env.NDK_VERSION }} # تمرير إصدار NDK هنا أيضًا (مفيد لبعض الأكشن)
+        build-tools: ${{ env.BUILD_TOOLS_VERSION }} # استخدام إصدار أدوات البناء
 
-    - name: Build AAR with gomobile bind
-      working-directory: go-tun2socks-mobile
+    # تهيئة gomobile بعد إعداد NDK/SDK
+    # هذا يسمح لـ gomobile بالعثور على NDK/SDK اللازمين بشكل صحيح وتنزيل الحزم الداخلية (مثل bind)
+    - name: Initialize gomobile # تهيئة gomobile
       run: |
+         # إعطاء مسار NDK بشكل صريح لـ gomobile init
+         # مسار NDK يأتي كمخرج من خطوة setup-ndk
+         echo "Initializing gomobile with NDK at ${{ steps.setup-ndk.outputs.ndk-path }}"
+         gomobile init -ndk="${{ steps.setup-ndk.outputs.ndk-path }}"
+         echo "gomobile initialization finished."
+
+    - name: Build AAR with gomobile bind # بناء ملف AAR باستخدام gomobile bind
+      run: |
+        # إنشاء مجلد build في جذر مساحة العمل
         mkdir -p build
+        echo "--- Running gomobile bind ---"
+        # تشغيل أمر gomobile bind
+        # -v: إظهار المزيد من التفاصيل (مفيد لتتبع الأخطاء)
+        # -target=android: تحديد الهدف هو Android
+        # -androidapi: تحديد مستوى API المستهدف
+        # -o: تحديد مسار واسم ملف الخرج (الـ AAR)
+        # github.com/eycorsican/go-tun2socks-mobile: مسار الحزمة Go المراد ربطها
         gomobile bind \
+          -v \
           -target=android \
+          -androidapi ${{ env.ANDROID_API }} \
           -o build/tun2socks.aar \
           github.com/eycorsican/go-tun2socks-mobile
+        echo "--- gomobile bind finished ---"
 
-    - name: Upload AAR artifact
-      uses: actions/upload-artifact@v2
+    - name: List build directory contents # عرض محتويات مجلد build للتحقق
+      run: ls -l build/
+
+    - name: Upload AAR artifact # رفع ملف AAR الناتج كملف Artifact
+      uses: actions/upload-artifact@v4 # استخدام أحدث إصدار
       with:
-        name: tun2socks-android-aar
-        path: go-tun2socks-mobile/build/tun2socks.aar
+        name: tun2socks-android-aar # اسم الـ Artifact
+        path: build/tun2socks.aar # مسار الملف المراد رفعه (في جذر مساحة العمل)
