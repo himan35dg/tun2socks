@@ -1,56 +1,56 @@
-name: Build Android tun2socks AAR
+# .github/workflows/build-android.yml
+name: Build tun2socks AAR
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
+    tags:
+      - 'v*'       # شغل على كل تاج يبدأ بـ v
+  workflow_dispatch:
 
 jobs:
   build-android:
     runs-on: ubuntu-latest
 
+    env:
+      # الحد الأدنى لإصدار Android API الذي يدعمه tun2socks
+      ANDROID_API: 21
+
     steps:
-    - name: Checkout repository
+    - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Set up Go 1.23
+    - name: Setup Go
       uses: actions/setup-go@v2
       with:
-        go-version: '1.23'
-
-    - name: Install Android NDK r21e
-      run: |
-        # Unpack under $HOME/ndk to avoid permission issues
-        mkdir -p "$HOME/ndk"
-        wget -q https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip
-        unzip -q android-ndk-r21e-linux-x86_64.zip -d "$HOME/ndk"
-
-    - name: Configure Android NDK env
-      run: |
-        echo "ANDROID_NDK_HOME=$HOME/ndk/android-ndk-r21e" >> $GITHUB_ENV
-        echo "PATH=$HOME/ndk/android-ndk-r21e/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH" >> $GITHUB_ENV
+        go-version: '1.23.x'
 
     - name: Install gomobile
       run: |
         go install golang.org/x/mobile/cmd/gomobile@latest
         gomobile init
 
-    - name: Clone go-tun2socks-mobile bindings
-      run: |
-        git clone https://github.com/iseki0/go-tun2socks-mobile.git go-tun2socks-mobile
+    - name: Setup Android NDK
+      uses: android-actions/setup-ndk@v2
+      with:
+        ndk-version: '21.3.6528147'   # إصدار مدعوم ضمن 21..35
 
-    - name: Build Android AAR with gomobile
+    - name: Install Android SDK tools
+      uses: android-actions/setup-sdk@v2
+      with:
+        api-level: ${{ env.ANDROID_API }}
+        components: platform-tools, build-tools;33.0.2
+
+    - name: Build AAR with gomobile bind
       working-directory: go-tun2socks-mobile
       run: |
         mkdir -p build
         gomobile bind \
           -target=android \
-          -ldflags="-s -w" \
           -o build/tun2socks.aar \
           github.com/eycorsican/go-tun2socks-mobile
 
     - name: Upload AAR artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v2
       with:
         name: tun2socks-android-aar
         path: go-tun2socks-mobile/build/tun2socks.aar
