@@ -31,14 +31,15 @@ jobs:
       run: |
         go install golang.org/x/mobile/cmd/gomobile@latest
 
-    # --- Use the correct version for setup-ndk ---
+    # --- Use the full commit SHA for setup-ndk ---
     - name: Setup Android NDK
-      uses: android-actions/setup-ndk@v1 # <-- CORRECTED VERSION TAG
+      # uses: android-actions/setup-ndk@v1 # Problematic tag resolution?
+      uses: android-actions/setup-ndk@c71af7a8fcc31d727d1052901b466a786b91862e # <-- USE FULL COMMIT SHA
       id: setup-ndk
       with:
         ndk-version: ${{ env.NDK_VERSION }}
 
-    # --- setup-sdk does have v3 ---
+    # --- setup-sdk seems okay with v3 ---
     - name: Setup Android SDK
       uses: android-actions/setup-sdk@v3
       id: setup-sdk
