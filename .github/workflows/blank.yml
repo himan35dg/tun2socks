@@ -3,86 +3,54 @@ name: Build tun2socks AAR
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*'       # شغل على كل تاج يبدأ بـ v
   workflow_dispatch:
 
 jobs:
   build-android:
-    # --- CHANGE RUNNER AGAIN ---
-    runs-on: ubuntu-20.04 # Try ubuntu-20.04
+    runs-on: ubuntu-latest
 
     env:
+      # الحد الأدنى لإصدار Android API الذي يدعمه tun2socks
       ANDROID_API: 21
-      NDK_VERSION_RAW: '25.2.9519653' # Corresponds to r25c
-      BUILD_TOOLS_VERSION: '33.0.2'
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v2
 
     - name: Setup Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v2
       with:
-        go-version: '1.22.x'
+        go-version: '1.23.x'
 
-    - name: Add Go bin to PATH
-      run: echo "$HOME/go/bin" >> $GITHUB_PATH
-
-    - name: Install gomobile
+    - name: Install gomobile and required packages
       run: |
         go install golang.org/x/mobile/cmd/gomobile@latest
+        go get -u golang.org/x/mobile/bind  # تثبيت الحزمة المفقودة
+        gomobile init
 
-    # --- Use setup-sdk@v3 (as it's the one now failing) ---
-    - name: Setup Android SDK
-      uses: android-actions/setup-sdk@v3 # This is the one failing
-      id: setup-sdk
+    - name: Setup Android NDK
+      uses: android-actions/setup-ndk@v2
+      with:
+        ndk-version: '21.3.6528147'   # إصدار مدعوم ضمن 21..35
+
+    - name: Install Android SDK tools
+      uses: android-actions/setup-sdk@v2
       with:
         api-level: ${{ env.ANDROID_API }}
-        build-tools: ${{ env.BUILD_TOOLS_VERSION }}
-        cmdline-tools-version: latest
-
-    # --- Re-integrate NDK setup using the working action or manual ---
-    # If setup-ndk@c71af7a8fcc31d727d1052901b466a786b91862e also failed, stick with manual NDK install approach
-    - name: Install Android NDK manually # Manual NDK install from previous attempt
-      run: |
-        echo "Adding SDK tools to PATH"
-        echo "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "${ANDROID_SDK_ROOT}/platform-tools" >> $GITHUB_PATH
-        echo "Attempting to install NDK version ${{ env.NDK_VERSION_RAW }}"
-        yes | sdkmanager "ndk;${{ env.NDK_VERSION_RAW }}"
-        echo "NDK installation finished."
-
-    - name: Set NDK_PATH environment variable
-      run: |
-        NDK_PATH="${ANDROID_SDK_ROOT}/ndk/${{ env.NDK_VERSION_RAW }}"
-        echo "NDK_PATH=${NDK_PATH}" >> $GITHUB_ENV
-        echo "Found NDK path: ${NDK_PATH}"
-        ls -ld "${NDK_PATH}"
-
-    - name: Initialize gomobile
-      run: |
-         echo "Initializing gomobile with NDK at $NDK_PATH"
-         gomobile init -ndk="${NDK_PATH}"
+        components: platform-tools, build-tools;33.0.2
 
     - name: Build AAR with gomobile bind
+      working-directory: go-tun2socks-mobile
       run: |
         mkdir -p build
-        echo "--- Running gomobile bind ---"
-        export NDK_HOME=$NDK_PATH # Also set NDK_HOME just in case
         gomobile bind \
-          -v \
           -target=android \
-          -androidapi ${{ env.ANDROID_API }} \
           -o build/tun2socks.aar \
           github.com/eycorsican/go-tun2socks-mobile
-        echo "--- gomobile bind finished ---"
-
-    - name: List build directory contents
-      run: ls -l build/
 
     - name: Upload AAR artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v2
       with:
         name: tun2socks-android-aar
-        path: build/tun2socks.aar
+        path: go-tun2socks-mobile/build/tun2socks.aar
