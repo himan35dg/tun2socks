@@ -11,60 +11,52 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # Minimum Android API level supported by tun2socks
       ANDROID_API: 21
-      # Define a recent NDK version
-      NDK_VERSION: 'r25c' # Example: NDK r25c (check gomobile docs for recommended versions if needed)
-      # Define Android build tools version
-      BUILD_TOOLS_VERSION: '33.0.2' # Or choose a different version
+      NDK_VERSION: 'r25c' # Example: NDK r25c
+      BUILD_TOOLS_VERSION: '33.0.2'
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4 # Use latest major version
+      uses: actions/checkout@v4
 
     - name: Setup Go
-      uses: actions/setup-go@v5 # Use latest major version
+      uses: actions/setup-go@v5
       with:
-        go-version: '1.22.x' # Using 1.22 for better stability, 1.23 might be too new for gomobile sometimes
+        go-version: '1.22.x' # Using 1.22 for stability
 
     - name: Add Go bin to PATH
       run: echo "$HOME/go/bin" >> $GITHUB_PATH
 
-    - name: Install and Initialize gomobile
+    - name: Install gomobile
       run: |
         go install golang.org/x/mobile/cmd/gomobile@latest
-        # gomobile init downloads necessary Go dependencies (like bind) and platform SDKs
-        # Run this *before* setting up NDK/SDK via actions if it causes conflicts,
-        # or after if it needs them (common case is after)
-        # Let's try running init *after* NDK/SDK setup below.
 
+    # --- Use the correct version for setup-ndk ---
     - name: Setup Android NDK
-      uses: android-actions/setup-ndk@v3 # Use latest major version
-      id: setup-ndk # Give it an ID to reference outputs if needed
+      uses: android-actions/setup-ndk@v1 # <-- CORRECTED VERSION TAG
+      id: setup-ndk
       with:
         ndk-version: ${{ env.NDK_VERSION }}
 
+    # --- setup-sdk does have v3 ---
     - name: Setup Android SDK
-      uses: android-actions/setup-sdk@v3 # Use latest major version
-      id: setup-sdk # Give it an ID to reference outputs if needed
+      uses: android-actions/setup-sdk@v3
+      id: setup-sdk
       with:
         api-level: ${{ env.ANDROID_API }}
-        ndk-version: ${{ env.NDK_VERSION }} # Pass NDK version here too
+        ndk-version: ${{ env.NDK_VERSION }}
         build-tools: ${{ env.BUILD_TOOLS_VERSION }}
-        # components: platform-tools # setup-sdk usually includes this by default
 
-    # Now run gomobile init *after* NDK/SDK are likely set up by the actions
-    # It might use these paths during initialization
-    - name: Initialize gomobile (after NDK/SDK setup)
+    # Initialize gomobile *after* NDK/SDK setup
+    - name: Initialize gomobile
       run: |
-         gomobile init -ndk="${{ steps.setup-ndk.outputs.ndk-path }}" # Explicitly tell gomobile where NDK is
+         # Explicitly tell gomobile where NDK is using the output from the setup-ndk step
+         gomobile init -ndk="${{ steps.setup-ndk.outputs.ndk-path }}"
 
     - name: Build AAR with gomobile bind
       run: |
-        # Create the build directory in the workspace root
         mkdir -p build
         echo "--- Running gomobile bind ---"
-        # Use -v for verbose output to help debug if it fails again
         gomobile bind \
           -v \
           -target=android \
@@ -77,8 +69,7 @@ jobs:
       run: ls -l build/
 
     - name: Upload AAR artifact
-      uses: actions/upload-artifact@v4 # Use latest major version
+      uses: actions/upload-artifact@v4
       with:
         name: tun2socks-android-aar
-        # Path is relative to the workspace root
         path: build/tun2socks.aar
