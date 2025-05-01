@@ -3,31 +3,32 @@ name: Build tun2socks
 on:
   push:
     branches:
-      - main
+      - main  # أو الفرع الذي تود تفعيله للبناء
   pull_request:
     branches:
-      - main
+      - main  # نفس الشيء
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # استخدام بيئة Ubuntu على GitHub Actions
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2  # سحب الكود من المستودع
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      - name: Set up Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: '1.18'  # تأكد من أنك تستخدم إصدار Go الذي تحتاجه
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '1.18'  # اختر الإصدار الذي تحتاجه من Go
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y make  # تثبيت make على بيئة Ubuntu
-          go install golang.org/x/mobile/cmd/gomobile@latest  # تثبيت gomobile
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y make
+        go get -u golang.org/x/mobile/cmd/gomobile
+        gomobile init  # قم بإعداد gomobile للـ Android
 
-      - name: Build tun2socks
-        run: |
-          cd go-tun2socks-build
-          make  # تشغيل make للبناء
+    - name: Build tun2socks
+      run: |
+        cd go-tun2socks
+        make  # أو أي أمر بناء آخر تحتاجه
