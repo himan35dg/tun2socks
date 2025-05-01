@@ -25,7 +25,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y make
-        go get -u golang.org/x/mobile/cmd/gomobile
+        go install golang.org/x/mobile/cmd/gomobile@latest  # استخدم go install هنا بدلاً من go get
         gomobile init  # قم بإعداد gomobile للـ Android
 
     - name: Build tun2socks
